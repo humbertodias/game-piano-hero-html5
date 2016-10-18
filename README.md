@@ -3,7 +3,7 @@
 
 Game Piano-Hero with HTML5.
 
-[Documentation](doc/Piano Hero.pdf)
+[Documentation](doc/piano-hero.pdf)
 
 
 ## Prerequires
@@ -29,6 +29,9 @@ cd game-piano-hero-html5
 Now, open **index.html** on your favorite browser.
 
 ![Preview](doc/demo.gif)
+
+
+[Demo with sound](doc/demo.mp4)
 
 
 
