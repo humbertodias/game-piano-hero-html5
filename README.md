@@ -31,7 +31,7 @@ Now, open **index.html** on your favorite browser.
 ![Preview](doc/demo.gif)
 
 
-[Demo with sound](doc/demo.mp4)
+[Demo with sound](doc/demo.mp4?raw=true)
 
 
 
