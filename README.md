@@ -1,5 +1,6 @@
-# Piano-Hero
+[![pages-build-deployment](https://github.com/humbertodias/game-piano-hero-html5/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/humbertodias/game-piano-hero-html5/actions/workflows/pages/pages-build-deployment)
 
+# Piano-Hero
 
 Game Piano-Hero with HTML5.
 
