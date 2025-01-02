@@ -1,225 +1,252 @@
-/*
-	-----------------------------------------------------------
-	dom.loadScript.js : 0.1.4 : 2014/02/12 : http://mudcu.be
-	-----------------------------------------------------------
-	Copyright 2011-2014 Mudcube. All rights reserved.
-	-----------------------------------------------------------
-	/// No verification
-	dom.loadScript.add("../js/jszip/jszip.js");
-	/// Strict loading order and verification.
-	dom.loadScript.add({
-		strictOrder: true,
-		urls: [
-			{
-				url: "../js/jszip/jszip.js",
-				verify: "JSZip",
-				onsuccess: function() {
-					console.log(1)
-				}
-			},
-			{ 
-				url: "../inc/downloadify/js/swfobject.js",
-				verify: "swfobject",
-				onsuccess: function() {
-					console.log(2)
-				}
-			}
-		],
-		onsuccess: function() {
-			console.log(3)
-		}
-	});
-	/// Just verification.
-	dom.loadScript.add({
-		url: "../js/jszip/jszip.js",
-		verify: "JSZip",
-		onsuccess: function() {
-			console.log(1)
-		}
-	});
+/* 
+  dom.loadScript.js : 0.2.0
+  2025-01-01 (Updated)
+
+  Original code by Mudcube (2011-2014).
+  Updated for clarity and maintainability.
+
+  Functionality:
+    - Dynamically load scripts with optional strict (sequential) or loose ordering.
+    - Verify global objects existence (e.g., "JSZip") after load.
+    - Provide per-script and batch-level callbacks for success/error.
+    - Track already loaded scripts to prevent duplication.
 */
 
-if (typeof(dom) === "undefined") var dom = {};
+(function(global) {
+  "use strict";
 
-(function() { "use strict";
+  // Polyfill basic Promise if needed (for very old browsers). 
+  // If your environment already supports Promises, remove or comment this out.
+  if (typeof Promise === "undefined") {
+    // Basic minimal polyfill (not production-grade).
+    var PENDING = 0, FULFILLED = 1, REJECTED = 2;
+    var SimplePromise = function(executor) {
+      var self = this;
+      this.state = PENDING;
+      this.value = null;
+      this.handlers = [];
+      function resolve(result) {
+        if (self.state !== PENDING) return;
+        self.state = FULFILLED;
+        self.value = result;
+        self.handlers.forEach(handle);
+      }
+      function reject(err) {
+        if (self.state !== PENDING) return;
+        self.state = REJECTED;
+        self.value = err;
+        self.handlers.forEach(handle);
+      }
+      function handle(handler) {
+        if (self.state === PENDING) {
+          self.handlers.push(handler);
+        } else if (self.state === FULFILLED && handler.onFulfilled) {
+          handler.onFulfilled(self.value);
+        } else if (self.state === REJECTED && handler.onRejected) {
+          handler.onRejected(self.value);
+        }
+      }
+      this.then = function(onFulfilled, onRejected) {
+        return new SimplePromise(function(resolve2, reject2) {
+          handle({
+            onFulfilled: function(val) {
+              if (!onFulfilled) {
+                resolve2(val);
+              } else {
+                try {
+                  var ret = onFulfilled(val);
+                  resolve2(ret);
+                } catch(e) {
+                  reject2(e);
+                }
+              }
+            },
+            onRejected: function(err) {
+              if (!onRejected) {
+                reject2(err);
+              } else {
+                try {
+                  var ret = onRejected(err);
+                  resolve2(ret);
+                } catch(e) {
+                  reject2(e);
+                }
+              }
+            }
+          });
+        });
+      };
+      executor(resolve, reject);
+    };
+    // Minimal polyfill usage
+    global.Promise = SimplePromise;
+  }
 
-dom.loadScript = function() {
-	this.loaded = {};
-	this.loading = {};
-	return this;
-};
+  // Helper to check if a global variable path exists.
+  function globalExists(path, rootObj) {
+    try {
+      if (!path) return true; // If no verification needed, treat as success.
+      var safePath = path.replace(/["'\]\[]/g, "."); // Replace bracket notation w/ dot
+      var parts = safePath.split(".");
+      var obj = rootObj || global;
+      for (var i = 0; i < parts.length; i++) {
+        var key = parts[i];
+        if (!key) continue; // skip empty from consecutive dots
+        if (obj[key] == null) {
+          return false;
+        }
+        obj = obj[key];
+      }
+      return true;
+    } catch(e) {
+      return false;
+    }
+  }
 
-dom.loadScript.prototype.add = function(config) {
-	var that = this;
-	if (typeof(config) === "string") {
-		config = { url: config };
-	}
-	var urls = config.urls;
-	if (typeof(urls) === "undefined") {
-		urls = [{ 
-			url: config.url, 
-			verify: config.verify
-		}];
-	}
-	/// adding the elements to the head
-	var doc = document.getElementsByTagName("head")[0];
-	/// 
-	var testElement = function(element, test) {
-		if (that.loaded[element.url]) return;
-		if (test && globalExists(test) === false) return;
-		that.loaded[element.url] = true;
-		//
-		if (that.loading[element.url]) that.loading[element.url]();
-		delete that.loading[element.url];
-		//
-		if (element.onsuccess) element.onsuccess();
-		if (typeof(getNext) !== "undefined") getNext();
-	};
-	///
-	var hasError = false;
-	var batchTest = [];
-	var addElement = function(element) {
-		if (typeof(element) === "string") {
-			element = {
-				url: element,
-				verify: config.verify
-			};
-		}
-		if (/([\w\d.\[\]\'\"])$/.test(element.verify)) { // check whether its a variable reference
-			var verify = element.test = element.verify;
-			if (typeof(verify) === "object") {
-				for (var n = 0; n < verify.length; n ++) {
-					batchTest.push(verify[n]);
-				}			
-			} else {
-				batchTest.push(verify);
-			}
-		}
-		if (that.loaded[element.url]) return;
-		var script = document.createElement("script");
-		script.onreadystatechange = function() {
-			if (this.readyState !== "loaded" && this.readyState !== "complete") return;
-			testElement(element);
-		};
-		script.onload = function() {
-			testElement(element);
-		};
-		script.onerror = function() {
-			hasError = true;
-			delete that.loading[element.url];
-			if (typeof(element.test) === "object") {
-				for (var key in element.test) {
-					removeTest(element.test[key]);
-				}			
-			} else {
-				removeTest(element.test);
-			}
-		};
-		script.setAttribute("type", "text/javascript");
-		script.setAttribute("src", element.url);
-		doc.appendChild(script);
-		that.loading[element.url] = function() {};
-	};
-	/// checking to see whether everything loaded properly
-	var removeTest = function(test) {
-		var ret = [];
-		for (var n = 0; n < batchTest.length; n ++) {
-			if (batchTest[n] === test) continue;
-			ret.push(batchTest[n]);
-		}
-		batchTest = ret;
-	};
-	var onLoad = function(element) {
-		if (element) {
-			testElement(element, element.test);
-		} else {
-			for (var n = 0; n < urls.length; n ++) {
-				testElement(urls[n], urls[n].test);
-			}
-		}
-		var istrue = true;
-		for (var n = 0; n < batchTest.length; n ++) {
-			if (globalExists(batchTest[n]) === false) {
-				istrue = false;
-			}
-		}
-		if (!config.strictOrder && istrue) { // finished loading all the requested scripts
-			if (hasError) {
-				if (config.error) {
-					config.error();
-				}
-			} else if (config.onsuccess) {
-				config.onsuccess();
-			}
-		} else { // keep calling back the function
-			setTimeout(function() { //- should get slower over time?
-				onLoad(element);
-			}, 10);
-		}
-	};
-	/// loading methods;  strict ordering or loose ordering
-	if (config.strictOrder) {
-		var ID = -1;
-		var getNext = function() {
-			ID ++;
-			if (!urls[ID]) { // all elements are loaded
-				if (hasError) {
-					if (config.error) {
-						config.error();
-					}
-				} else if (config.onsuccess) {
-					config.onsuccess();
-				}
-			} else { // loading new script
-				var element = urls[ID];
-				var url = element.url;
-				if (that.loading[url]) { // already loading from another call (attach to event)
-					that.loading[url] = function() {
-						if (element.onsuccess) element.onsuccess();
-						getNext();
-					}
-				} else if (!that.loaded[url]) { // create script element
-					addElement(element);
-					onLoad(element);
-				} else { // it's already been successfully loaded
-					getNext();
-				}
-			}
-		};
-		getNext();
-	} else { // loose ordering
-		for (var ID = 0; ID < urls.length; ID ++) {
-			addElement(urls[ID]);
-			onLoad(urls[ID]);
-		}
-	}
-};
+  // The main loader constructor
+  function LoadScript() {
+    this.loaded = {};   // Map of url -> boolean
+    this.loading = {};  // Map of url -> 'in progress' callback
+  }
 
-dom.loadScript = new dom.loadScript();
+  // Add method: can accept either a single config or an object with multiple URLs
+  LoadScript.prototype.add = function(config) {
+    if (typeof config === "string") {
+      config = { url: config };
+    }
+    var that = this;
+    // If no 'urls' array is present, convert to one
+    var urls = config.urls;
+    if (!urls) {
+      urls = [{
+        url: config.url,
+        verify: config.verify,
+        onsuccess: config.onsuccess
+      }];
+    }
 
-var globalExists = function(path, root) {
-	try {
-		path = path.split('"').join('').split("'").join('').split(']').join('').split('[').join('.');
-		var parts = path.split(".");
-		var length = parts.length;
-		var object = root || window;
-		for (var n = 0; n < length; n ++) {
-			var key = parts[n];
-			if (object[key] == null) {
-				return false;
-			} else { //
-				object = object[key];
-			}
-		}
-		return true;
-	} catch(e) {
-		return false;
-	}
-};
+    var strictOrder = !!config.strictOrder;
+    var onBatchSuccess = config.onsuccess || function(){};
+    var onBatchError   = config.error     || function(){};
 
-})();
+    // Either load in strict sequence or loose parallel
+    if (strictOrder) {
+      // Strict (sequential) approach
+      var index = 0;
+      var loadNext = function() {
+        if (index >= urls.length) {
+          // All scripts processed
+          onBatchSuccess();
+          return;
+        }
+        loadSingle(urls[index])
+          .then(function() {
+            // If script loaded successfully, move to next
+            index++;
+            loadNext();
+          })
+          .catch(function(err) {
+            // On error, call batch error and stop
+            onBatchError(err);
+          });
+      };
+      loadNext();
+    } else {
+      // Loose approach: load all in parallel, then check global verifications
+      var promises = urls.map(function(u) {
+        return loadSingle(u);
+      });
+      // Wait for all to finish
+      Promise.all(promises)
+        .then(function() {
+          onBatchSuccess();
+        })
+        .catch(function(err) {
+          onBatchError(err);
+        });
+    }
 
-/// For NodeJS
-if (typeof (module) !== "undefined" && module.exports) {
-	module.exports = dom.loadScript;
-}
+    // Returns a Promise that resolves after one script is loaded & verified
+    function loadSingle(element) {
+      return new Promise(function(resolve, reject) {
+        var url = element.url;
+        var verifyKey = element.verify;
+        
+        // If already loaded, skip script injection
+        if (that.loaded[url]) {
+          // But still check verification
+          if (verifyKey && !globalExists(verifyKey)) {
+            return reject(new Error("Global object '" + verifyKey + "' not found, though script claims loaded."));
+          }
+          if (element.onsuccess) element.onsuccess();
+          return resolve();
+        }
+
+        // If the script is currently loading by another call, attach a callback
+        if (that.loading[url]) {
+          that.loading[url].push(function(verified) {
+            if (!verified) {
+              reject(new Error("Script " + url + " failed to load/verify"));
+            } else {
+              if (element.onsuccess) element.onsuccess();
+              resolve();
+            }
+          });
+          return;
+        }
+
+        // Mark as loading
+        that.loading[url] = [];
+
+        // Create and append <script> tag
+        var script = document.createElement("script");
+        script.type = "text/javascript";
+        script.src = url;
+
+        // Called on success
+        script.onload = function() {
+          if (verifyKey && !globalExists(verifyKey)) {
+            finishLoading(false);
+            reject(new Error("Global object '" + verifyKey + "' not found after loading " + url));
+            return;
+          }
+          // Mark as loaded
+          that.loaded[url] = true;
+          finishLoading(true);
+          if (element.onsuccess) element.onsuccess();
+          resolve();
+        };
+
+        // Called on error
+        script.onerror = function() {
+          finishLoading(false);
+          reject(new Error("Failed to load script: " + url));
+        };
+
+        function finishLoading(success) {
+          // Fire off queued callbacks
+          that.loading[url].forEach(function(cb) {
+            cb(success);
+          });
+          delete that.loading[url];
+        }
+
+        // Inject script
+        document.head.appendChild(script);
+      });
+    }
+  };
+
+  // Attach to global namespace
+  if (typeof(global.dom) === "undefined") {
+    global.dom = {};
+  }
+  var instance = new LoadScript();
+  global.dom.loadScript = instance;
+
+  // Node.js export if applicable
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = instance;
+  }
+
+})(typeof window !== "undefined" ? window : this);
