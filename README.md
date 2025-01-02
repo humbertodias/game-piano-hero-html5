@@ -4,14 +4,12 @@
 
 Game Piano-Hero with HTML5.
 
-[Documentation](doc/piano-hero.pdf)
-
+[Documentation](doc/piano-hero.pdf) | [Demo](https://humbertodias.github.io/game-piano-hero-html5/)
 
 ## Prerequires
 
 1. Git 2.6+
 3. Browser
-
 
 ## How to Play
 
@@ -31,8 +29,7 @@ Now, open **index.html** on your favorite browser.
 
 ![Preview](doc/demo.gif)
 
-
-[Demo with sound](doc/demo.mp4?raw=true)
+[Play](https://humbertodias.github.io/game-piano-hero-html5/) | [Demo with sound](doc/demo.mp4?raw=true)
 
 
 
